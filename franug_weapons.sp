@@ -325,7 +325,7 @@ public Action:Event_Say(clientIndex, const String:command[], arg)
 {
 	static String:menuTriggers[][] = { "gun", "!gun", "/gun", "guns", "!guns", "/guns", "menu", "!menu", "/menu", "weapon", "!weapon", "/weapon", "weapons", "!weapons", "/weapons" };
 	
-	if (clientIndex != 0 && IsClientInGame(clientIndex))
+	if (clientIndex > 0 && IsClientInGame(clientIndex))
 	{
 		// Retrieve and clean up text.
 		decl String:text[24];
