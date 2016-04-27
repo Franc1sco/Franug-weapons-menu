@@ -149,12 +149,6 @@ Handle:BuildOptionsMenu(bool:sameWeaponsEnabled)
 	return menu3;
 }
 
-stock void AddMenuOption(Menu menu, const char[] info, const char[] display, any:...) {
-    char formattedDisplay[128];
-    VFormat(formattedDisplay, sizeof(formattedDisplay), display, 4);
-    menu.AddItem(info, formattedDisplay);
-}
-
 DisplayOptionsMenu(clientIndex)
 {
 	if (strcmp(primaryWeapon[clientIndex], "") == 0 || strcmp(secondaryWeapon[clientIndex], "") == 0)
