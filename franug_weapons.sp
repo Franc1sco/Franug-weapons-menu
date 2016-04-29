@@ -107,6 +107,8 @@ public OnPluginStart()
 	HookConVarChange(cvar_decoy, OnConVarChanged);
 	HookConVarChange(cvar_molotov, OnConVarChanged);
 	HookConVarChange(cvar_flash, OnConVarChanged);
+	
+	LoadTranslations("franug_weapons.phrases");
 }
 
 public OnConVarChanged(Handle:convar, const String:oldValue[], const String:newValue[])
@@ -136,7 +138,7 @@ public OnConVarChanged(Handle:convar, const String:oldValue[], const String:newV
 Handle:BuildOptionsMenu(bool:sameWeaponsEnabled)
 {
 	new sameWeaponsStyle = (sameWeaponsEnabled) ? ITEMDRAW_DEFAULT : ITEMDRAW_DISABLED;
-	new Handle:menu3 = CreateMenu(Menu_Options);
+	new Handle:menu3 = CreateMenu(Menu_Options, MENU_ACTIONS_DEFAULT | MenuAction_DisplayItem );
 	SetMenuTitle(menu3, "Weapon Menu:");
 	SetMenuExitButton(menu3, true);
 	AddMenuItem(menu3, "New", "New weapons");
@@ -206,7 +208,7 @@ public Menu_Options(Handle:menu, MenuAction:action, param1, param2)
 			if (weaponsGivenThisRound[param1])
 			{
 				newWeaponsSelected[param1] = true;
-				PrintToChat(param1, "[\x04GUNS\x01] You will be given the same weapons on next spawn.");
+				PrintToChat(param1, "[\x04GUNS\x01] %t.", "Same");
 			}
 			GiveSavedWeapons(param1);
 			rememberChoice[param1] = false;
@@ -214,7 +216,7 @@ public Menu_Options(Handle:menu, MenuAction:action, param1, param2)
 		else if (StrEqual(info, "Same All"))
 		{
 			if (weaponsGivenThisRound[param1])
-				PrintToChat(param1, "[\x04GUNS\x01] You will be given the same weapons starting on next spawn.");
+				PrintToChat(param1, "[\x04GUNS\x01] %t.", "Same_All");
 			GiveSavedWeapons(param1);
 			rememberChoice[param1] = true;
 		}
@@ -223,7 +225,7 @@ public Menu_Options(Handle:menu, MenuAction:action, param1, param2)
 			if (weaponsGivenThisRound[param1])
 			{
 				newWeaponsSelected[param1] = true;
-				PrintToChat(param1, "[\x04GUNS\x01] You will receive random weapons on next spawn.");
+				PrintToChat(param1, "[\x04GUNS\x01] %t.", "Random");
 			}
 			primaryWeapon[param1] = "random";
 			secondaryWeapon[param1] = "random";
@@ -233,13 +235,27 @@ public Menu_Options(Handle:menu, MenuAction:action, param1, param2)
 		else if (StrEqual(info, "Random All"))
 		{
 			if (weaponsGivenThisRound[param1])
-				PrintToChat(param1, "[\x04GUNS\x01] You will receive random weapons starting on next spawn.");
+				PrintToChat(param1, "[\x04GUNS\x01] %t.", "Random_All");
 			primaryWeapon[param1] = "random";
 			secondaryWeapon[param1] = "random";
 			GiveSavedWeapons(param1);
 			rememberChoice[param1] = true;
 		}
 	}
+	else if	(action == MenuAction_DisplayItem)
+	{
+		decl String:Display[128];
+		switch(param2)
+		{
+			case 0: FormatEx(Display, sizeof(Display), "%T", "Menu_NewWeapons", param1);
+			case 1: FormatEx(Display, sizeof(Display), "%T", "Menu_SameWeapons", param1);
+			case 2: FormatEx(Display, sizeof(Display), "%T", "Menu_SameWeapons_all", param1);
+			case 3: FormatEx(Display, sizeof(Display), "%T", "Menu_Random", param1);
+			case 4: FormatEx(Display, sizeof(Display), "%T", "Menu_Random_All", param1);
+		}
+		return RedrawMenuItem(Display);
+	}
+	return 0;
 }
 
 public Menu_Primary(Handle:menu, MenuAction:action, param1, param2)
@@ -264,7 +280,7 @@ public Menu_Secondary(Handle:menu, MenuAction:action, param1, param2)
 		if (!IsPlayerAlive(param1))
 			newWeaponsSelected[param1] = true;
 		if (newWeaponsSelected[param1])
-			PrintToChat(param1, "[\x04GUNS\x01] Your new weapons will be given to you on next spawn.");
+			PrintToChat(param1, "[\x04GUNS\x01] %t.", "New_weapons");
 	}
 }
 
@@ -462,7 +478,7 @@ GiveSavedWeapons(clientIndex)
 			
 		if(GetPlayerWeaponSlot(clientIndex, 2) == -1) GivePlayerItem(clientIndex, "weapon_knife");
 		FakeClientCommand(clientIndex,"use weapon_knife");
-		PrintToChat(clientIndex, "[\x04GUNS\x01] Say !guns in chat to change your weapons preferences.");
+		PrintToChat(clientIndex, "[\x04GUNS\x01] %t.", "Change_Weapons");
 		//PrintToChat(clientIndex, "Primary weapons is %s secondary weapons is %s y valor primary es %i",primaryWeapon[clientIndex], secondaryWeapon[clientIndex], strcmp(primaryWeapon[clientIndex], ""));
 	}
 }
