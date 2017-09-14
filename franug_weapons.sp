@@ -23,35 +23,9 @@
 #include <zombiereloaded>
 #include <clientprefs>
 
-#define VERSION "3.1"
+#define VERSION "3.2"
 
-
-new Handle:Timers[MAXPLAYERS + 1] = INVALID_HANDLE;
-
-new bool:newWeaponsSelected[MAXPLAYERS+1];
-new bool:rememberChoice[MAXPLAYERS+1];
-new bool:weaponsGivenThisRound[MAXPLAYERS + 1] = { false, ... };
-
-// Menus
-new Handle:optionsMenu1 = INVALID_HANDLE;
-new Handle:optionsMenu2 = INVALID_HANDLE;
-new Handle:optionsMenu3 = INVALID_HANDLE;
-new Handle:optionsMenu4 = INVALID_HANDLE;
-
-new String:primaryWeapon[MAXPLAYERS + 1][24];
-new String:secondaryWeapon[MAXPLAYERS + 1][24];
-
-new Handle:cvar_smoke;
-new Handle:cvar_hegrenade;
-new Handle:cvar_decoy;
-new Handle:cvar_molotov;
-new Handle:cvar_flash;
-
-new b_smoke;
-new b_hegrenade;
-new b_decoy;
-new b_molotov;
-new b_flash;
+#pragma newdecls required
 
 // Grenade Defines
 #define NADE_FLASHBANG    0
@@ -61,289 +35,295 @@ new b_flash;
 #define NADE_DECOY        4
 #define NADE_INCENDIARY   5
 
-new const g_iaGrenadeOffsets[] = {15, 17, 16, 14, 18, 17};
+Handle g_hTimer[MAXPLAYERS + 1] = INVALID_HANDLE;
+
+bool g_bNewWeaponsSelected[MAXPLAYERS + 1];
+bool g_bRememberChoice[MAXPLAYERS + 1];
+bool g_bWeaponsGivenThisRound[MAXPLAYERS + 1] = { false, ... };
+bool g_bHasFlag[MAXPLAYERS + 1] = { false, ... };
+
+// Menus
+Menu g_mOptionsMenu1 = null;
+Menu g_mOptionsMenu2 = null;
+Menu g_mOptionsMenu3 = null;
+Menu g_mOptionsMenu4 = null;
+
+char g_sPrimaryWeapon[MAXPLAYERS + 1][24];
+char g_sSecondaryWeapon[MAXPLAYERS + 1][24];
+
+ConVar g_cSmoke;
+ConVar g_cHeGrenade;
+ConVar g_cDecoy;
+ConVar g_cMolotov;
+ConVar g_cFlash;
+
+ConVar g_cFlags;
+
+ConVar g_cSmoke_Vip;
+ConVar g_cHeGrenade_Vip;
+ConVar g_cDecoy_Vip;
+ConVar g_cMolotov_Vip;
+ConVar g_cFlash_Vip;
 
 
-enum Armas
+
+int g_iaGrenadeOffsets[] =  { 15, 17, 16, 14, 18, 17 };
+
+
+enum Weapons
 {
-	String:nombre[64],
+	String:number[64], 
 	String:desc[64]
 }
 
-new Handle:array_primarias;
-new Handle:array_secundarias;
+ArrayList g_aPrimary;
+ArrayList g_aSecoundary;
 
-public Plugin:myinfo =
+Handle g_hWeapons1 = INVALID_HANDLE;
+Handle g_hWeapons2 = INVALID_HANDLE;
+//Handle remember = INVALID_HANDLE;
+
+public Plugin myinfo = 
 {
-	name = "SM Franug Weapons",
-	author = "Franc1sco franug",
-	description = "plugin",
-	version = VERSION,
+	name = "SM Franug Weapons", 
+	author = "Franc1sco franug & good_live", 
+	description = "", 
+	version = VERSION, 
 	url = "http://steamcommunity.com/id/franug"
 };
 
-new Handle:weapons1 = INVALID_HANDLE;
-new Handle:weapons2 = INVALID_HANDLE;
-//new Handle:remember = INVALID_HANDLE;
-
-public OnPluginStart()
+public void OnPluginStart()
 {
-	array_primarias = CreateArray(128);
-	array_secundarias = CreateArray(128);
-	ListaArmas();
+	g_aPrimary = new ArrayList(128);
+	g_aSecoundary = new ArrayList(128);
+	ListWeapons();
 	
 	// Create menus
-	optionsMenu1 = BuildOptionsMenu(true);
-	optionsMenu2 = BuildOptionsMenu(false);
-	optionsMenu3 = BuildOptionsMenuWeapons(true);
-	optionsMenu4 = BuildOptionsMenuWeapons(false);
+	g_mOptionsMenu1 = BuildOptionsMenu(true);
+	g_mOptionsMenu2 = BuildOptionsMenu(false);
+	g_mOptionsMenu3 = BuildOptionsMenuWeapons(true);
+	g_mOptionsMenu4 = BuildOptionsMenuWeapons(false);
 	
 	HookEvent("player_spawn", Event_PlayerSpawn);
 	
 	AddCommandListener(Event_Say, "say");
 	AddCommandListener(Event_Say, "say_team");
 	
-	weapons1 = RegClientCookie("Primary Weapons", "", CookieAccess_Private);
-	weapons2 = RegClientCookie("Secondary Weapons", "", CookieAccess_Private);
+	g_hWeapons1 = RegClientCookie("Primary Weapons", "", CookieAccess_Private);
+	g_hWeapons2 = RegClientCookie("Secondary Weapons", "", CookieAccess_Private);
 	//remember = RegClientCookie("Remember Weapons", "", CookieAccess_Private);
 	
-	cvar_smoke = CreateConVar("sm_zeusweapons_smoke", "1", "Number of smoke");
-	cvar_hegrenade = CreateConVar("sm_zeusweapons_hegrenade", "1", "Number of hegrenade");
-	cvar_decoy = CreateConVar("sm_zeusweapons_decoy", "0", "Number of decoy");
-	cvar_molotov = CreateConVar("sm_zeusweapons_molotov", "0", "Number of molotov");
-	cvar_flash = CreateConVar("sm_zeusweapons_flash", "0", "Number of flashbang");
+	g_cSmoke = CreateConVar("sm_zeusweapons_smoke", "1", "Number of smoke");
+	g_cHeGrenade = CreateConVar("sm_zeusweapons_hegrenade", "1", "Number of hegrenade");
+	g_cDecoy = CreateConVar("sm_zeusweapons_decoy", "0", "Number of decoy");
+	g_cMolotov = CreateConVar("sm_zeusweapons_molotov", "0", "Number of molotov");
+	g_cFlash = CreateConVar("sm_zeusweapons_flash", "0", "Number of flashbang");
 	
-	b_smoke = GetConVarInt(cvar_smoke);
-	b_hegrenade = GetConVarInt(cvar_hegrenade);
-	b_decoy = GetConVarInt(cvar_decoy);
-	b_molotov = GetConVarInt(cvar_molotov);
-	b_flash = GetConVarInt(cvar_flash);
+	g_cFlags = CreateConVar("sm_zeusweapons_vip_flags", "a", "One of these flags is needed to be marked as VIP");
 	
-	HookConVarChange(cvar_smoke, OnConVarChanged);
-	HookConVarChange(cvar_hegrenade, OnConVarChanged);
-	HookConVarChange(cvar_decoy, OnConVarChanged);
-	HookConVarChange(cvar_molotov, OnConVarChanged);
-	HookConVarChange(cvar_flash, OnConVarChanged);
+	g_cSmoke_Vip = CreateConVar("sm_zeusweapons_smoke_vip", "1", "Number of smoke for vips");
+	g_cHeGrenade_Vip = CreateConVar("sm_zeusweapons_hegrenade_vip", "1", "Number of hegrenade for vips");
+	g_cDecoy_Vip = CreateConVar("sm_zeusweapons_decoy_vip", "0", "Number of decoy for vips");
+	g_cMolotov_Vip = CreateConVar("sm_zeusweapons_molotov_vip", "0", "Number of molotov for vips");
+	g_cFlash_Vip = CreateConVar("sm_zeusweapons_flash_vip", "0", "Number of flashbang for vips");
 	
 	LoadTranslations("franug_weapons.phrases");
+	
+	AutoExecConfig(true);
+	
 }
 
-public OnConVarChanged(Handle:convar, const String:oldValue[], const String:newValue[])
+Menu BuildOptionsMenu(bool sameWeaponsEnabled)
 {
-	if (convar == cvar_smoke)
-	{
-		b_smoke = StringToInt(newValue);
-	}
-	else if (convar == cvar_hegrenade)
-	{
-		b_hegrenade = StringToInt(newValue);
-	}
-	else if (convar == cvar_decoy)
-	{
-		b_decoy = StringToInt(newValue);
-	}
-	else if (convar == cvar_molotov)
-	{
-		b_molotov = StringToInt(newValue);
-	}
-	else if (convar == cvar_flash)
-	{
-		b_flash = StringToInt(newValue);
-	}
-}
-
-Handle:BuildOptionsMenu(bool:sameWeaponsEnabled)
-{
-	new sameWeaponsStyle = (sameWeaponsEnabled) ? ITEMDRAW_DEFAULT : ITEMDRAW_DISABLED;
-	new Handle:menu3 = CreateMenu(Menu_Options, MENU_ACTIONS_DEFAULT | MenuAction_DisplayItem );
-	SetMenuTitle(menu3, "Weapon Menu:");
-	SetMenuExitButton(menu3, true);
-	AddMenuItem(menu3, "New", "New weapons");
-	AddMenuItem(menu3, "Same 1", "Same weapons", sameWeaponsStyle);
-	AddMenuItem(menu3, "Same All", "Same weapons every round", sameWeaponsStyle);
-	AddMenuItem(menu3, "Random 1", "Random weapons");
-	AddMenuItem(menu3, "Random All", "Random weapons every round");
+	int sameWeaponsStyle = (sameWeaponsEnabled) ? ITEMDRAW_DEFAULT : ITEMDRAW_DISABLED;
+	Menu menu3 = new Menu(Menu_Options, MENU_ACTIONS_DEFAULT | MenuAction_DisplayItem);
+	menu3.SetTitle("Weapon Menu:");
+	menu3.ExitBackButton = true;
+	menu3.AddItem("New", "New weapons");
+	menu3.AddItem("Same 1", "Same weapons", sameWeaponsStyle);
+	menu3.AddItem("Same All", "Same weapons every round", sameWeaponsStyle);
+	menu3.AddItem("Random 1", "Random weapons");
+	menu3.AddItem("Random All", "Random weapons every round");
 	return menu3;
 }
 
-DisplayOptionsMenu(clientIndex)
+void DisplayOptionsMenu(int client)
 {
-	if (strcmp(primaryWeapon[clientIndex], "") == 0 || strcmp(secondaryWeapon[clientIndex], "") == 0)
-		DisplayMenu(optionsMenu2, clientIndex, MENU_TIME_FOREVER);
+	if (strcmp(g_sPrimaryWeapon[client], "") == 0 || strcmp(g_sSecondaryWeapon[client], "") == 0)
+		g_mOptionsMenu2.Display(client, MENU_TIME_FOREVER);
 	else
-		DisplayMenu(optionsMenu1, clientIndex, MENU_TIME_FOREVER);
+		g_mOptionsMenu1.Display(client, MENU_TIME_FOREVER);
 }
 
-Handle:BuildOptionsMenuWeapons(bool:primary)
+Menu BuildOptionsMenuWeapons(bool primary)
 {
-	new Handle:menu;
-	new Items[Armas];
-	if(primary)
+	Menu menu;
+	int Items[Weapons];
+	if (primary)
 	{
-		menu = CreateMenu(Menu_Primary);
-		SetMenuTitle(menu, "Primary Weapon:");
-		SetMenuExitButton(menu, true);
-		for(new i=0;i<GetArraySize(array_primarias);++i)
+		menu = new Menu(Menu_Primary);
+		menu.SetTitle("Primary Weapon:");
+		menu.ExitBackButton = true;
+		for (int i = 0; i < g_aPrimary.Length; ++i)
 		{
-			GetArrayArray(array_primarias, i, Items[0]);
-			AddMenuItem(menu, Items[nombre], Items[desc]);
+			g_aPrimary.GetArray(i, Items[0]);
+			menu.AddItem(Items[number], Items[desc]);
 		}
 	}
 	else
 	{
-		menu = CreateMenu(Menu_Secondary);
-		SetMenuTitle(menu, "Secundary Weapon:");
-		SetMenuExitButton(menu, true);
-		for(new i=0;i<GetArraySize(array_secundarias);++i)
+		menu = new Menu(Menu_Secoundary);
+		menu.SetTitle("Secundary Weapon:");
+		menu.ExitBackButton = true;
+		for (int i = 0; i < g_aSecoundary.Length; ++i)
 		{
-			GetArrayArray(array_secundarias, i, Items[0]);
-			AddMenuItem(menu, Items[nombre], Items[desc]);
+			g_aSecoundary.GetArray(i, Items[0]);
+			menu.AddItem(Items[number], Items[desc]);
 		}
 	}
 	
 	return menu;
-
 }
 
 
-public Menu_Options(Handle:menu, MenuAction:action, param1, param2)
+public int Menu_Options(Menu menu, MenuAction action, int param1, int param2)
 {
 	if (action == MenuAction_Select)
 	{
-		decl String:info[24];
-		GetMenuItem(menu, param2, info, sizeof(info));
+		char info[24];
+		menu.GetItem(param2, info, sizeof(info));
 		
 		if (StrEqual(info, "New"))
 		{
-			if (weaponsGivenThisRound[param1])
-				newWeaponsSelected[param1] = true;
-			DisplayMenu(optionsMenu3, param1, MENU_TIME_FOREVER);
-			rememberChoice[param1] = false;
+			if (g_bWeaponsGivenThisRound[param1])
+				g_bNewWeaponsSelected[param1] = true;
+			g_mOptionsMenu3.Display(param1, MENU_TIME_FOREVER);
+			g_bRememberChoice[param1] = false;
 		}
 		else if (StrEqual(info, "Same 1"))
 		{
-			if (weaponsGivenThisRound[param1])
+			if (g_bWeaponsGivenThisRound[param1])
 			{
-				newWeaponsSelected[param1] = true;
+				g_bNewWeaponsSelected[param1] = true;
 				PrintToChat(param1, "[\x04GUNS\x01] %t.", "Same");
 			}
 			GiveSavedWeapons(param1);
-			rememberChoice[param1] = false;
+			g_bRememberChoice[param1] = false;
 		}
 		else if (StrEqual(info, "Same All"))
 		{
-			if (weaponsGivenThisRound[param1])
+			if (g_bWeaponsGivenThisRound[param1])
 				PrintToChat(param1, "[\x04GUNS\x01] %t.", "Same_All");
 			GiveSavedWeapons(param1);
-			rememberChoice[param1] = true;
+			g_bRememberChoice[param1] = true;
 		}
 		else if (StrEqual(info, "Random 1"))
 		{
-			if (weaponsGivenThisRound[param1])
+			if (g_bWeaponsGivenThisRound[param1])
 			{
-				newWeaponsSelected[param1] = true;
+				g_bNewWeaponsSelected[param1] = true;
 				PrintToChat(param1, "[\x04GUNS\x01] %t.", "Random");
 			}
-			primaryWeapon[param1] = "random";
-			secondaryWeapon[param1] = "random";
+			g_sPrimaryWeapon[param1] = "random";
+			g_sSecondaryWeapon[param1] = "random";
 			GiveSavedWeapons(param1);
-			rememberChoice[param1] = false;
+			g_bRememberChoice[param1] = false;
 		}
 		else if (StrEqual(info, "Random All"))
 		{
-			if (weaponsGivenThisRound[param1])
+			if (g_bWeaponsGivenThisRound[param1])
 				PrintToChat(param1, "[\x04GUNS\x01] %t.", "Random_All");
-			primaryWeapon[param1] = "random";
-			secondaryWeapon[param1] = "random";
+			g_sPrimaryWeapon[param1] = "random";
+			g_sSecondaryWeapon[param1] = "random";
 			GiveSavedWeapons(param1);
-			rememberChoice[param1] = true;
+			g_bRememberChoice[param1] = true;
 		}
 	}
-	else if	(action == MenuAction_DisplayItem)
+	else if (action == MenuAction_DisplayItem)
 	{
-		decl String:Display[128];
-		switch(param2)
+		char Display[128];
+		switch (param2)
 		{
-			case 0: FormatEx(Display, sizeof(Display), "%T", "Menu_NewWeapons", param1);
-			case 1: FormatEx(Display, sizeof(Display), "%T", "Menu_SameWeapons", param1);
-			case 2: FormatEx(Display, sizeof(Display), "%T", "Menu_SameWeapons_all", param1);
-			case 3: FormatEx(Display, sizeof(Display), "%T", "Menu_Random", param1);
-			case 4: FormatEx(Display, sizeof(Display), "%T", "Menu_Random_All", param1);
+			case 0:FormatEx(Display, sizeof(Display), "%T", "Menu_NewWeapons", param1);
+			case 1:FormatEx(Display, sizeof(Display), "%T", "Menu_SameWeapons", param1);
+			case 2:FormatEx(Display, sizeof(Display), "%T", "Menu_SameWeapons_all", param1);
+			case 3:FormatEx(Display, sizeof(Display), "%T", "Menu_Random", param1);
+			case 4:FormatEx(Display, sizeof(Display), "%T", "Menu_Random_All", param1);
 		}
 		return RedrawMenuItem(Display);
 	}
 	return 0;
 }
 
-public Menu_Primary(Handle:menu, MenuAction:action, param1, param2)
+public int Menu_Primary(Menu menu, MenuAction action, int param1, int param2)
 {
 	if (action == MenuAction_Select)
 	{
-		decl String:info[24];
-		GetMenuItem(menu, param2, info, sizeof(info));
-		primaryWeapon[param1] = info;
-		DisplayMenu(optionsMenu4, param1, MENU_TIME_FOREVER);
+		char info[24];
+		menu.GetItem(param2, info, sizeof(info));
+		g_sPrimaryWeapon[param1] = info;
+		g_mOptionsMenu4.Display(param1, MENU_TIME_FOREVER);
 	}
 }
 
-public Menu_Secondary(Handle:menu, MenuAction:action, param1, param2)
+public int Menu_Secoundary(Menu menu, MenuAction action, int param1, int param2)
 {
 	if (action == MenuAction_Select)
 	{
-		decl String:info[24];
-		GetMenuItem(menu, param2, info, sizeof(info));
-		secondaryWeapon[param1] = info;
+		char info[24];
+		menu.GetItem(param2, info, sizeof(info));
+		g_sSecondaryWeapon[param1] = info;
 		GiveSavedWeapons(param1);
 		if (!IsPlayerAlive(param1))
-			newWeaponsSelected[param1] = true;
-		if (newWeaponsSelected[param1])
+			g_bNewWeaponsSelected[param1] = true;
+		if (g_bNewWeaponsSelected[param1])
 			PrintToChat(param1, "[\x04GUNS\x01] %t.", "New_weapons");
 	}
 }
 
-public OnMapStart()
+public void OnMapStart()
 {
 	SetBuyZones("Disable");
 }
 
-public Event_PlayerSpawn(Handle:event, const String:name[], bool:dontBroadcast)
+public void Event_PlayerSpawn(Event event, const char[] name, bool dontBroadcast)
 {
-	new clientIndex = GetClientOfUserId(GetEventInt(event, "userid"));
+	int client = GetClientOfUserId(event.GetInt("userid"));
 	
-	//CancelClientMenu(clientIndex);
-	MatarTimer(clientIndex);
-	Timers[clientIndex] = CreateTimer(2.0, Aparecer, clientIndex);
+	//CancelClientMenu(client);
+	CloseTimer(client);
+	g_hTimer[client] = CreateTimer(2.0, GiveWeapons, client);
 }
 
-public Action:Aparecer(Handle:timer, any:clientIndex)
+public Action GiveWeapons(Handle timer, any client)
 {
-	Timers[clientIndex] = INVALID_HANDLE;
-	if (GetClientTeam(clientIndex) > 1 && IsPlayerAlive(clientIndex) && !ZR_IsClientZombie(clientIndex))
+	g_hTimer[client] = INVALID_HANDLE;
+	if (GetClientTeam(client) > 1 && IsPlayerAlive(client) && !ZR_IsClientZombie(client))
 	{
 		// Give weapons or display menu.
-		weaponsGivenThisRound[clientIndex] = false;
-		if (newWeaponsSelected[clientIndex])
+		g_bWeaponsGivenThisRound[client] = false;
+		if (g_bNewWeaponsSelected[client])
 		{
-			GiveSavedWeapons(clientIndex);
-			newWeaponsSelected[clientIndex] = false;
+			GiveSavedWeapons(client);
+			g_bNewWeaponsSelected[client] = false;
 		}
-		else if (rememberChoice[clientIndex])
+		else if (g_bRememberChoice[client])
 		{
-			GiveSavedWeapons(clientIndex);
+			GiveSavedWeapons(client);
 		}
 		else
 		{
-			DisplayOptionsMenu(clientIndex);
+			DisplayOptionsMenu(client);
 		}
 	}
 }
 
-SetBuyZones(const String:status[])
+void SetBuyZones(const char[] status)
 {
-	new maxEntities = GetMaxEntities();
-	decl String:class[24];
+	int maxEntities = GetMaxEntities();
+	char class[24];
 	
-	for (new i = MaxClients + 1; i < maxEntities; i++)
+	for (int i = MaxClients + 1; i < maxEntities; i++)
 	{
 		if (IsValidEdict(i))
 		{
@@ -354,24 +334,24 @@ SetBuyZones(const String:status[])
 	}
 }
 
-public Action:Event_Say(clientIndex, const String:command[], arg)
+public Action Event_Say(int client, const char[] command, int arg)
 {
-	static String:menuTriggers[][] = { "gun", "!gun", "/gun", "guns", "!guns", "/guns", "menu", "!menu", "/menu", "weapon", "!weapon", "/weapon", "weapons", "!weapons", "/weapons" };
+	static char menuTriggers[][] =  { "gun", "!gun", "/gun", "guns", "!guns", "/guns", "menu", "!menu", "/menu", "weapon", "!weapon", "/weapon", "weapons", "!weapons", "/weapons" };
 	
-	if (clientIndex > 0 && IsClientInGame(clientIndex))
+	if (client > 0 && IsClientInGame(client))
 	{
 		// Retrieve and clean up text.
-		decl String:text[24];
+		char text[24];
 		GetCmdArgString(text, sizeof(text));
 		StripQuotes(text);
 		TrimString(text);
-	
-		for(new i = 0; i < sizeof(menuTriggers); i++)
+		
+		for (int i = 0; i < sizeof(menuTriggers); i++)
 		{
 			if (StrEqual(text, menuTriggers[i], false))
 			{
-				rememberChoice[clientIndex] = false;
-				DisplayOptionsMenu(clientIndex);
+				g_bRememberChoice[client] = false;
+				DisplayOptionsMenu(client);
 				return Plugin_Handled;
 			}
 		}
@@ -379,124 +359,153 @@ public Action:Event_Say(clientIndex, const String:command[], arg)
 	return Plugin_Continue;
 }
 
-GiveSavedWeapons(clientIndex)
+void GiveSavedWeapons(int client)
 {
-	decl String:weapons[128];
-	new weaponindex;
-	if (!weaponsGivenThisRound[clientIndex] && IsPlayerAlive(clientIndex) && !ZR_IsClientZombie(clientIndex))
+	char weapons[128];
+	int weaponindex;
+	if (!g_bWeaponsGivenThisRound[client] && IsPlayerAlive(client) && !ZR_IsClientZombie(client))
 	{
-		//StripAllWeapons(clientIndex);
-		weaponindex = GetPlayerWeaponSlot(clientIndex, CS_SLOT_PRIMARY);
-		if (StrEqual(primaryWeapon[clientIndex], "random"))
+		//StripAllWeapons(client);
+		weaponindex = GetPlayerWeaponSlot(client, CS_SLOT_PRIMARY);
+		if (StrEqual(g_sPrimaryWeapon[client], "random"))
 		{
-			if(weaponindex != -1)
+			if (weaponindex != -1)
 			{
-				RemovePlayerItem(clientIndex, weaponindex);
+				RemovePlayerItem(client, weaponindex);
 				AcceptEntityInput(weaponindex, "Kill");
 			}
 			// Select random menu item (excluding "Random" option)
-			new random = GetRandomInt(0, GetArraySize(array_primarias)-1);
-			new Items[Armas];
-			GetArrayArray(array_primarias, random, Items[0]);
-			GivePlayerItem(clientIndex, Items[nombre]);
+			int random = GetRandomInt(0, g_aPrimary.Length - 1);
+			int Items[Weapons];
+			g_aPrimary.GetArray(random, Items[0]);
+			GivePlayerItem(client, Items[number]);
 		}
 		else
 		{
-			if(weaponindex != -1)
+			if (weaponindex != -1)
 			{
 				GetEdictClassname(weaponindex, weapons, 128);
-				if(!StrEqual(weapons, primaryWeapon[clientIndex]))
+				if (!StrEqual(weapons, g_sPrimaryWeapon[client]))
 				{
-					RemovePlayerItem(clientIndex, weaponindex);
+					RemovePlayerItem(client, weaponindex);
 					AcceptEntityInput(weaponindex, "Kill");
 					
-					GivePlayerItem(clientIndex, primaryWeapon[clientIndex]);
+					GivePlayerItem(client, g_sPrimaryWeapon[client]);
 				}
 			}
 			else
 			{
 				
-				GivePlayerItem(clientIndex, primaryWeapon[clientIndex]);
+				GivePlayerItem(client, g_sPrimaryWeapon[client]);
 			}
 		}
 		
 		// next
 		
-		weaponindex = GetPlayerWeaponSlot(clientIndex, CS_SLOT_SECONDARY);
-		if (StrEqual(secondaryWeapon[clientIndex], "random"))
+		weaponindex = GetPlayerWeaponSlot(client, CS_SLOT_SECONDARY);
+		if (StrEqual(g_sSecondaryWeapon[client], "random"))
 		{
-			if(weaponindex != -1)
+			if (weaponindex != -1)
 			{
-				RemovePlayerItem(clientIndex, weaponindex);
+				RemovePlayerItem(client, weaponindex);
 				AcceptEntityInput(weaponindex, "Kill");
 			}
 			// Select random menu item (excluding "Random" option)
-			new random = GetRandomInt(0, GetArraySize(array_secundarias)-1);
-			new Items[Armas];
-			GetArrayArray(array_secundarias, random, Items[0]);
-			GivePlayerItem(clientIndex, Items[nombre]);
+			int random = GetRandomInt(0, g_aSecoundary.Length - 1);
+			int Items[Weapons];
+			g_aSecoundary.GetArray(random, Items[0]);
+			GivePlayerItem(client, Items[number]);
 		}
 		else
 		{
-			if(weaponindex != -1)
+			if (weaponindex != -1)
 			{
 				GetEdictClassname(weaponindex, weapons, 128);
-				if(!StrEqual(weapons, secondaryWeapon[clientIndex]))
+				if (!StrEqual(weapons, g_sSecondaryWeapon[client]))
 				{
-					RemovePlayerItem(clientIndex, weaponindex);
+					RemovePlayerItem(client, weaponindex);
 					AcceptEntityInput(weaponindex, "Kill");
 					
-					GivePlayerItem(clientIndex, secondaryWeapon[clientIndex]);
+					GivePlayerItem(client, g_sSecondaryWeapon[client]);
 				}
 			}
 			else
 			{
 				
-				GivePlayerItem(clientIndex, secondaryWeapon[clientIndex]);
+				GivePlayerItem(client, g_sSecondaryWeapon[client]);
 			}
 		}
-
-/* 		new iEnt;
-		while ((iEnt = GetPlayerWeaponSlot(clientIndex, CS_SLOT_GRENADE)) != -1)
+		
+		/* 		new iEnt;
+		while ((iEnt = GetPlayerWeaponSlot(client, CS_SLOT_GRENADE)) != -1)
 		{
-            RemovePlayerItem(clientIndex, iEnt);
+            RemovePlayerItem(client, iEnt);
             AcceptEntityInput(iEnt, "Kill");
 		} */
 		
 		
-		RemoveNades(clientIndex);
+		RemoveNades(client);
 		
-		if(b_hegrenade > 0) 
+		if(!g_bHasFlag[client])
 		{
-			GivePlayerItem(clientIndex, "weapon_hegrenade");
-			SetEntProp(clientIndex, Prop_Send, "m_iAmmo", b_hegrenade, _, g_iaGrenadeOffsets[NADE_HE]);
+			if (g_cHeGrenade.IntValue > 0)
+			{
+				GivePlayerItem(client, "weapon_hegrenade");
+				SetEntProp(client, Prop_Send, "m_iAmmo", g_cHeGrenade.IntValue, _, g_iaGrenadeOffsets[NADE_HE]);
+			}
+			if (g_cDecoy.IntValue > 0)
+			{
+				GivePlayerItem(client, "weapon_decoy");
+				SetEntProp(client, Prop_Send, "m_iAmmo", g_cDecoy.IntValue, _, g_iaGrenadeOffsets[NADE_DECOY]);
+			}
+			if (g_cMolotov.IntValue > 0)
+			{
+				GivePlayerItem(client, "weapon_molotov");
+				SetEntProp(client, Prop_Send, "m_iAmmo", g_cMolotov.IntValue, _, g_iaGrenadeOffsets[NADE_MOLOTOV]);
+			}
+			if (g_cSmoke.IntValue > 0)
+			{
+				GivePlayerItem(client, "weapon_smokegrenade");
+				SetEntProp(client, Prop_Send, "m_iAmmo", g_cSmoke.IntValue, _, g_iaGrenadeOffsets[NADE_SMOKE]);
+			}
+			if (g_cFlash.IntValue > 0)
+			{
+				GivePlayerItem(client, "weapon_flashbang");
+				SetEntProp(client, Prop_Send, "m_iAmmo", g_cFlash.IntValue, _, g_iaGrenadeOffsets[NADE_FLASHBANG]);
+			}
+		}else{
+			if (g_cHeGrenade_Vip.IntValue > 0)
+			{
+				GivePlayerItem(client, "weapon_hegrenade");
+				SetEntProp(client, Prop_Send, "m_iAmmo", g_cHeGrenade_Vip.IntValue, _, g_iaGrenadeOffsets[NADE_HE]);
+			}
+			if (g_cDecoy_Vip.IntValue > 0)
+			{
+				GivePlayerItem(client, "weapon_decoy");
+				SetEntProp(client, Prop_Send, "m_iAmmo", g_cDecoy_Vip.IntValue, _, g_iaGrenadeOffsets[NADE_DECOY]);
+			}
+			if (g_cMolotov_Vip.IntValue > 0)
+			{
+				GivePlayerItem(client, "weapon_molotov");
+				SetEntProp(client, Prop_Send, "m_iAmmo", g_cMolotov_Vip.IntValue, _, g_iaGrenadeOffsets[NADE_MOLOTOV]);
+			}
+			if (g_cSmoke_Vip.IntValue > 0)
+			{
+				GivePlayerItem(client, "weapon_smokegrenade");
+				SetEntProp(client, Prop_Send, "m_iAmmo", g_cSmoke_Vip.IntValue, _, g_iaGrenadeOffsets[NADE_SMOKE]);
+			}
+			if (g_cFlash_Vip.IntValue > 0)
+			{
+				GivePlayerItem(client, "weapon_flashbang");
+				SetEntProp(client, Prop_Send, "m_iAmmo", g_cFlash_Vip.IntValue, _, g_iaGrenadeOffsets[NADE_FLASHBANG]);
+			}
 		}
-		if(b_decoy > 0)
-		{
-			GivePlayerItem(clientIndex, "weapon_decoy");
-			SetEntProp(clientIndex, Prop_Send, "m_iAmmo", b_decoy, _, g_iaGrenadeOffsets[NADE_DECOY]);
-		}
-		if(b_molotov > 0)
-		{
-			GivePlayerItem(clientIndex, "weapon_molotov");
-			SetEntProp(clientIndex, Prop_Send, "m_iAmmo", b_molotov, _, g_iaGrenadeOffsets[NADE_MOLOTOV]);
-		}
-		if(b_smoke > 0)
-		{
-			GivePlayerItem(clientIndex, "weapon_smokegrenade");
-			SetEntProp(clientIndex, Prop_Send, "m_iAmmo", b_smoke, _, g_iaGrenadeOffsets[NADE_SMOKE]);
-		}
-		if(b_flash > 0)
-		{
-			GivePlayerItem(clientIndex, "weapon_flashbang");
-			SetEntProp(clientIndex, Prop_Send, "m_iAmmo", b_flash, _, g_iaGrenadeOffsets[NADE_FLASHBANG]);
-		}
-		weaponsGivenThisRound[clientIndex] = true;
-			
-		if(GetPlayerWeaponSlot(clientIndex, 2) == -1) GivePlayerItem(clientIndex, "weapon_knife");
-		FakeClientCommand(clientIndex,"use weapon_knife");
-		PrintToChat(clientIndex, "[\x04GUNS\x01] %t.", "Change_Weapons");
-		//PrintToChat(clientIndex, "Primary weapons is %s secondary weapons is %s y valor primary es %i",primaryWeapon[clientIndex], secondaryWeapon[clientIndex], strcmp(primaryWeapon[clientIndex], ""));
+		g_bWeaponsGivenThisRound[client] = true;
+		
+		if (GetPlayerWeaponSlot(client, 2) == -1)GivePlayerItem(client, "weapon_knife");
+		FakeClientCommand(client, "use weapon_knife");
+		PrintToChat(client, "[\x04GUNS\x01] %t.", "Change_Weapons");
+		//PrintToChat(client, "Primary weapons is %s secondary weapons is %s y valor primary es %i",g_sPrimaryWeapon[client], g_sSecondaryWeapon[client], strcmp(g_sPrimaryWeapon[client], ""));
 	}
 }
 
@@ -513,188 +522,207 @@ GiveSavedWeapons(clientIndex)
     }
 }   */
 
-public OnClientPutInServer(client)
+public void OnClientPostAdminCheck(int client)
+{
+	if (IsValidClient(client))
+	{
+		g_bHasFlag[client] = false;
+		char buffer[16];
+		g_cFlags.GetString(buffer, sizeof(buffer));
+		if (strlen(buffer) > 0)
+		{
+			char sFlags[16];
+			AdminFlag aFlags[16];
+			
+			Format(sFlags, sizeof(sFlags), buffer);
+			FlagBitsToArray(ReadFlagString(sFlags), aFlags, sizeof(aFlags));
+			
+			if (HasFlags(client, aFlags))
+			{
+				g_bHasFlag[client] = true;
+			}
+		}
+	}
+}
+
+public void OnClientPutInServer(int client)
 {
 	ResetClientSettings(client);
 }
 
-public OnClientCookiesCached(client)
+public void OnClientCookiesCached(int client)
 {
-	GetClientCookie(client, weapons1, primaryWeapon[client], 24);
-	GetClientCookie(client, weapons2, secondaryWeapon[client], 24);
-	//rememberChoice[client] = GetCookie(client);
-	rememberChoice[client] = false;
+	GetClientCookie(client, g_hWeapons1, g_sPrimaryWeapon[client], 24);
+	GetClientCookie(client, g_hWeapons2, g_sSecondaryWeapon[client], 24);
+	//g_bRememberChoice[client] = GetCookie(client);
+	g_bRememberChoice[client] = false;
 }
 
-ResetClientSettings(clientIndex)
+void ResetClientSettings(int client)
 {
-	weaponsGivenThisRound[clientIndex] = false;
-	newWeaponsSelected[clientIndex] = false;
+	g_bWeaponsGivenThisRound[client] = false;
+	g_bNewWeaponsSelected[client] = false;
 }
 
-public OnClientDisconnect(clientIndex)
+public void OnClientDisconnect(int client)
 {
-	MatarTimer(clientIndex);
+	CloseTimer(client);
 	
-	SetClientCookie(clientIndex, weapons1, primaryWeapon[clientIndex]);
-	SetClientCookie(clientIndex, weapons2, secondaryWeapon[clientIndex]);
-	
-/* 	if(rememberChoice[clientIndex]) SetClientCookie(clientIndex, remember, "On");
-	else SetClientCookie(clientIndex, remember, "Off"); */
+	SetClientCookie(client, g_hWeapons1, g_sPrimaryWeapon[client]);
+	SetClientCookie(client, g_hWeapons2, g_sSecondaryWeapon[client]);
 }
 
-MatarTimer(client)
+public void CloseTimer(int client)
 {
-	if (Timers[client] != INVALID_HANDLE)
-    {
-		KillTimer(Timers[client]);
-		Timers[client] = INVALID_HANDLE;
+	if (g_hTimer[client] != INVALID_HANDLE)
+	{
+		KillTimer(g_hTimer[client]);
+		g_hTimer[client] = INVALID_HANDLE;
 	}
 }
 
 
-ListaArmas()
+void ListWeapons()
 {
-	ClearArray(array_primarias);
-	ClearArray(array_secundarias);
+	g_aPrimary.Clear();
+	g_aSecoundary.Clear();
 	
-	new Items[Armas];
+	int Items[Weapons];
 	
-	Format(Items[nombre], 64, "weapon_negev");
+	Format(Items[number], 64, "weapon_negev");
 	Format(Items[desc], 64, "Negev");
-	PushArrayArray(array_primarias, Items[0]);
+	g_aPrimary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_m249");
+	Format(Items[number], 64, "weapon_m249");
 	Format(Items[desc], 64, "M249");
-	PushArrayArray(array_primarias, Items[0]);
+	g_aPrimary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_bizon");
+	Format(Items[number], 64, "weapon_bizon");
 	Format(Items[desc], 64, "PP-Bizon");
-	PushArrayArray(array_primarias, Items[0]);
+	g_aPrimary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_p90");
+	Format(Items[number], 64, "weapon_p90");
 	Format(Items[desc], 64, "P90");
-	PushArrayArray(array_primarias, Items[0]);
+	g_aPrimary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_scar20");
+	Format(Items[number], 64, "weapon_scar20");
 	Format(Items[desc], 64, "SCAR-20");
-	PushArrayArray(array_primarias, Items[0]);
+	g_aPrimary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_g3sg1");
+	Format(Items[number], 64, "weapon_g3sg1");
 	Format(Items[desc], 64, "G3SG1");
-	PushArrayArray(array_primarias, Items[0]);
+	g_aPrimary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_m4a1");
+	Format(Items[number], 64, "weapon_m4a1");
 	Format(Items[desc], 64, "M4A1");
-	PushArrayArray(array_primarias, Items[0]);
+	g_aPrimary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_m4a1_silencer");
+	Format(Items[number], 64, "weapon_m4a1_silencer");
 	Format(Items[desc], 64, "M4A1-S");
-	PushArrayArray(array_primarias, Items[0]);
+	g_aPrimary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_ak47");
+	Format(Items[number], 64, "weapon_ak47");
 	Format(Items[desc], 64, "AK-47");
-	PushArrayArray(array_primarias, Items[0]);
+	g_aPrimary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_aug");
+	Format(Items[number], 64, "weapon_aug");
 	Format(Items[desc], 64, "AUG");
-	PushArrayArray(array_primarias, Items[0]);
+	g_aPrimary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_galilar");
+	Format(Items[number], 64, "weapon_galilar");
 	Format(Items[desc], 64, "Galil AR");
-	PushArrayArray(array_primarias, Items[0]);
+	g_aPrimary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_awp");
+	Format(Items[number], 64, "weapon_awp");
 	Format(Items[desc], 64, "AWP");
-	PushArrayArray(array_primarias, Items[0]);
+	g_aPrimary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_sg556");
+	Format(Items[number], 64, "weapon_sg556");
 	Format(Items[desc], 64, "SG 553");
-	PushArrayArray(array_primarias, Items[0]);
+	g_aPrimary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_ump45");
+	Format(Items[number], 64, "weapon_ump45");
 	Format(Items[desc], 64, "UMP-45");
-	PushArrayArray(array_primarias, Items[0]);
+	g_aPrimary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_mp7");
+	Format(Items[number], 64, "weapon_mp7");
 	Format(Items[desc], 64, "MP7");
-	PushArrayArray(array_primarias, Items[0]);
-
-	Format(Items[nombre], 64, "weapon_famas");
+	g_aPrimary.PushArray(Items[0]);
+	
+	Format(Items[number], 64, "weapon_famas");
 	Format(Items[desc], 64, "FAMAS");
-	PushArrayArray(array_primarias, Items[0]);
+	g_aPrimary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_mp9");
+	Format(Items[number], 64, "weapon_mp9");
 	Format(Items[desc], 64, "MP9");
-	PushArrayArray(array_primarias, Items[0]);
-
-	Format(Items[nombre], 64, "weapon_mac10");
+	g_aPrimary.PushArray(Items[0]);
+	
+	Format(Items[number], 64, "weapon_mac10");
 	Format(Items[desc], 64, "MAC-10");
-	PushArrayArray(array_primarias, Items[0]);
+	g_aPrimary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_ssg08");
+	Format(Items[number], 64, "weapon_ssg08");
 	Format(Items[desc], 64, "SSG 08");
-	PushArrayArray(array_primarias, Items[0]);
+	g_aPrimary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_nova");
+	Format(Items[number], 64, "weapon_nova");
 	Format(Items[desc], 64, "Nova");
-	PushArrayArray(array_primarias, Items[0]);
+	g_aPrimary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_xm1014");
+	Format(Items[number], 64, "weapon_xm1014");
 	Format(Items[desc], 64, "XM1014");
-	PushArrayArray(array_primarias, Items[0]);
+	g_aPrimary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_sawedoff");
+	Format(Items[number], 64, "weapon_sawedoff");
 	Format(Items[desc], 64, "Sawed-Off");
-	PushArrayArray(array_primarias, Items[0]);
+	g_aPrimary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_mag7");
+	Format(Items[number], 64, "weapon_mag7");
 	Format(Items[desc], 64, "MAG-7");
-	PushArrayArray(array_primarias, Items[0]);
+	g_aPrimary.PushArray(Items[0]);
 	
-
+	
 	
 	// Secondary weapons
-	Format(Items[nombre], 64, "weapon_elite");
+	Format(Items[number], 64, "weapon_elite");
 	Format(Items[desc], 64, "Dual Berettas");
-	PushArrayArray(array_secundarias, Items[0]);
-
-	Format(Items[nombre], 64, "weapon_deagle");
+	g_aSecoundary.PushArray(Items[0]);
+	
+	Format(Items[number], 64, "weapon_deagle");
 	Format(Items[desc], 64, "Desert Eagle");
-	PushArrayArray(array_secundarias, Items[0]);
-
-	Format(Items[nombre], 64, "weapon_tec9");
+	g_aSecoundary.PushArray(Items[0]);
+	
+	Format(Items[number], 64, "weapon_tec9");
 	Format(Items[desc], 64, "Tec-9");
-	PushArrayArray(array_secundarias, Items[0]);
+	g_aSecoundary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_fiveseven");
+	Format(Items[number], 64, "weapon_fiveseven");
 	Format(Items[desc], 64, "Five-SeveN");
-	PushArrayArray(array_secundarias, Items[0]);
-
-	Format(Items[nombre], 64, "weapon_cz75a");
+	g_aSecoundary.PushArray(Items[0]);
+	
+	Format(Items[number], 64, "weapon_cz75a");
 	Format(Items[desc], 64, "CZ75-Auto");
-	PushArrayArray(array_secundarias, Items[0]);
+	g_aSecoundary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_glock");
+	Format(Items[number], 64, "weapon_glock");
 	Format(Items[desc], 64, "Glock-18");
-	PushArrayArray(array_secundarias, Items[0]);
+	g_aSecoundary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_usp_silencer");
+	Format(Items[number], 64, "weapon_usp_silencer");
 	Format(Items[desc], 64, "USP-S");
-	PushArrayArray(array_secundarias, Items[0]);
+	g_aSecoundary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_p250");
+	Format(Items[number], 64, "weapon_p250");
 	Format(Items[desc], 64, "P250");
-	PushArrayArray(array_secundarias, Items[0]);
+	g_aSecoundary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_hkp2000");
+	Format(Items[number], 64, "weapon_hkp2000");
 	Format(Items[desc], 64, "P2000");
-	PushArrayArray(array_secundarias, Items[0]);
+	g_aSecoundary.PushArray(Items[0]);
 	
-	Format(Items[nombre], 64, "weapon_revolver");
+	Format(Items[number], 64, "weapon_revolver");
 	Format(Items[desc], 64, "Revolver");
-	PushArrayArray(array_secundarias, Items[0]);
-	
+	g_aSecoundary.PushArray(Items[0]);
 }
 
 /* bool:GetCookie(client)
@@ -705,20 +733,43 @@ ListaArmas()
 	return StrEqual(buffer, "On");
 } */
 
-stock RemoveNades(iClient)
+stock void RemoveNades(int iClient)
 {
-    while(RemoveWeaponBySlot(iClient, 3)){}
-    for(new i = 0; i < 6; i++)
-        SetEntProp(iClient, Prop_Send, "m_iAmmo", 0, _, g_iaGrenadeOffsets[i]);
+	while (RemoveWeaponBySlot(iClient, 3)) {  }
+	for (int i = 0; i < 6; i++)
+	SetEntProp(iClient, Prop_Send, "m_iAmmo", 0, _, g_iaGrenadeOffsets[i]);
 }
 
-stock bool:RemoveWeaponBySlot(iClient, iSlot)
+stock bool RemoveWeaponBySlot(int iClient, int iSlot)
 {
-    new iEntity = GetPlayerWeaponSlot(iClient, iSlot);
-    if(IsValidEdict(iEntity)) {
-        RemovePlayerItem(iClient, iEntity);
-        AcceptEntityInput(iEntity, "Kill");
-        return true;
-    }
-    return false;
+	int iEntity = GetPlayerWeaponSlot(iClient, iSlot);
+	if (IsValidEdict(iEntity)) {
+		RemovePlayerItem(iClient, iEntity);
+		AcceptEntityInput(iEntity, "Kill");
+		return true;
+	}
+	return false;
+}
+
+stock bool IsValidClient(int client)
+{
+	if (client <= 0 || client > MaxClients || !IsClientInGame(client))
+		return false;
+	
+	return true;
+}
+
+//Stolen from TTT :D
+stock bool HasFlags(int client, AdminFlag flags[16])
+{
+	int iFlags = GetUserFlagBits(client);
+	
+	if (iFlags & ADMFLAG_ROOT)
+		return true;
+	
+	for (int i = 0; i < sizeof(flags); i++)
+	if (iFlags & FlagToBit(flags[i]))
+		return true;
+	
+	return false;
 }
