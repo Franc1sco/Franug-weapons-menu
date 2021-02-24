@@ -2,66 +2,77 @@
 {
 	"Same"
 	{
+		"chi"			"你将在下一回合使用相同的武器"
 		"en"			"You will be given the same weapons on next spawn"
 		"ru"			"Новое оружие будет выдано при последующем спавне"
 	}
 	
 	"Same_All"
 	{
+		"chi"			"你将在下一回合使用相同的武器"
 		"en"			"You will be given the same weapons starting on next spawn"
 		"ru"			"Вам будет выдано такое же оружие при следующем спавне"
 	}
 	
 	"Random"
 	{
+		"chi"			"你将在下一次复活时使用随机的武器"
 		"en"			"You will receive random weapons on next spawn"
 		"ru"			"Вам будет выдано случайное оружие при следуюущем спавне"
 	}
 	
 	"Random_All"
 	{
+		"chi"			"你将在下一次复活时使用随机的武器"
 		"en"			"You will receive random weapons starting on next spawn"
 		"ru"			"Вам будет выдавать случайное оружие при каждом спавне"
 	}
 	
 	"New_weapons"
 	{
+		"chi"			"你将在下一次复活时使用新的武器"
 		"en"			"Your new weapons will be given to you on next spawn"
 		"ru"			"Новое оружие будет выдано при последующем спавне"
 	}
 	
 	"Change_Weapons"
 	{
+		"chi"			"在聊天框输入 !guns 来变更你的武器偏好"
 		"en"			"Say !guns in chat to change your weapons preferences"
 		"ru"			"Напишите !guns в чат, что бы сменить оружие"
 	}	
 	
 	"Menu_NewWeapons"
 	{
+		"chi"			"新武器"
 		"en"			"New weapons"
 		"ru"			"Новое оружие"
 	}
 	
 	"Menu_SameWeapons"
 	{
+		"chi"			"相同的武器"
 		"en"			"Same weapons"
 		"ru"			"Такое же оружие"
 	}
 	
 	"Menu_SameWeapons_all"
 	{
+		"chi"			"每一局都使用相同的武器"
 		"en"			"Same weapons every round"
 		"ru"			"Такое же оружие каждый раз"
 	}
 	
 	"Menu_Random"
 	{
+		"chi"			"随机武器"
 		"en"			"Random weapons"
 		"ru"			"Случайное оружие"
 	}
 	
 	"Menu_Random_All"
 	{
+		"chi"			"每一局都使用随机的武器"
 		"en"			"Random weapons every round"
 		"ru"			"Случайное оружие каждый раз"
 	}
